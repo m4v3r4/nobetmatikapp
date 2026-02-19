@@ -30,7 +30,11 @@ jobs:
         run: flutter pub get
 
       - name: Build web
-        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+        run: >
+          flutter build web --release
+          --base-href "/${{ github.event.repository.name }}/"
+          --dart-define=ADSENSE_CLIENT=${{ vars.ADSENSE_CLIENT }}
+          --dart-define=ADSENSE_BANNER_SLOT=${{ vars.ADSENSE_BANNER_SLOT }}
 
       - name: SPA fallback for GitHub Pages
         run: cp build/web/index.html build/web/404.html
