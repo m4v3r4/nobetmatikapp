@@ -92,301 +92,316 @@ class _PlanViewPageState extends State<PlanViewPage> {
 
     final List<DateTime> cells = _monthCells(visibleMonth);
 
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool compact = constraints.maxWidth < 760;
+        final bool wide = constraints.maxWidth >= 1280;
+        final double aspectRatio = compact ? 0.95 : (wide ? 1.2 : 1.05);
+
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1280),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text('${formatDate(periodStart)} - ${formatDate(periodEnd)}'),
-                  Text('Atama sayisi: ${result.assignments.length}'),
-                  Text('Bos slot sayisi: ${result.unfilledSlots.length}'),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            '${formatDate(periodStart)} - ${formatDate(periodEnd)}',
+                          ),
+                          Text('Atama sayisi: ${result.assignments.length}'),
+                          Text(
+                            'Bos slot sayisi: ${result.unfilledSlots.length}',
+                          ),
+                          const SizedBox(height: 6),
+                          Align(
+                            alignment: compact
+                                ? Alignment.centerLeft
+                                : Alignment.centerRight,
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: <Widget>[
+                                OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final ScaffoldMessengerState messenger =
+                                        ScaffoldMessenger.of(context);
+
+                                    String? targetDirectoryPath;
+                                    String? targetFileName;
+                                    if (_supportsManualPdfSaveDialog) {
+                                      final _PdfSaveSelection? selection =
+                                          await _showPdfSaveDialog(
+                                            context,
+                                            title: 'Liste PDF Kaydet',
+                                            initialFileName:
+                                                _defaultListPdfName(result),
+                                          );
+                                      if (selection == null) {
+                                        messenger.showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Kaydetme iptal edildi.',
+                                            ),
+                                          ),
+                                        );
+                                        return;
+                                      }
+                                      targetDirectoryPath =
+                                          selection.directoryPath;
+                                      targetFileName = selection.fileName;
+                                    }
+
+                                    await widget.onShowInterstitialAd();
+                                    final exportResult =
+                                        await PlanPrintService.exportPlanListPdf(
+                                          result: result,
+                                          people: widget.people,
+                                          locations: widget.locations,
+                                          targetDirectoryPath:
+                                              targetDirectoryPath,
+                                          targetFileName: targetFileName,
+                                        );
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text(exportResult.message),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.print_outlined),
+                                  label: const Text('Liste PDF Kaydet'),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final ScaffoldMessengerState messenger =
+                                        ScaffoldMessenger.of(context);
+
+                                    String? targetDirectoryPath;
+                                    String? targetFileName;
+                                    if (_supportsManualPdfSaveDialog) {
+                                      final _PdfSaveSelection? selection =
+                                          await _showPdfSaveDialog(
+                                            context,
+                                            title: 'Takvim PDF Kaydet',
+                                            initialFileName:
+                                                _defaultCalendarPdfName(result),
+                                          );
+                                      if (selection == null) {
+                                        messenger.showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Kaydetme iptal edildi.',
+                                            ),
+                                          ),
+                                        );
+                                        return;
+                                      }
+                                      targetDirectoryPath =
+                                          selection.directoryPath;
+                                      targetFileName = selection.fileName;
+                                    }
+
+                                    await widget.onShowInterstitialAd();
+                                    final exportResult =
+                                        await PlanPrintService.exportPlanCalendarPdf(
+                                          result: result,
+                                          people: widget.people,
+                                          locations: widget.locations,
+                                          targetDirectoryPath:
+                                              targetDirectoryPath,
+                                          targetFileName: targetFileName,
+                                        );
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text(exportResult.message),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.calendar_month_outlined,
+                                  ),
+                                  label: const Text('Takvim PDF Kaydet'),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: () async {
+                                    await widget.onClearPlan();
+                                  },
+                                  icon: const Icon(Icons.delete_outline),
+                                  label: const Text('Plani Temizle'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: <Widget>[
+                      IconButton(
+                        onPressed: _isSameMonth(visibleMonth, minMonth)
+                            ? null
+                            : () => setState(
+                                () => _visibleMonth = DateTime(
+                                  visibleMonth.year,
+                                  visibleMonth.month - 1,
+                                  1,
+                                ),
+                              ),
+                        icon: const Icon(Icons.chevron_left),
+                      ),
+                      Expanded(
+                        child: Center(
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<DateTime>(
+                              value: visibleMonth,
+                              items: months
+                                  .map(
+                                    (m) => DropdownMenuItem<DateTime>(
+                                      value: m,
+                                      child: Text(
+                                        '${m.month.toString().padLeft(2, '0')}.${m.year}',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleMedium,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (value) {
+                                if (value == null) return;
+                                setState(() => _visibleMonth = value);
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: _isSameMonth(visibleMonth, maxMonth)
+                            ? null
+                            : () => setState(
+                                () => _visibleMonth = DateTime(
+                                  visibleMonth.year,
+                                  visibleMonth.month + 1,
+                                  1,
+                                ),
+                              ),
+                        icon: const Icon(Icons.chevron_right),
+                      ),
+                    ],
+                  ),
+                  _WeekHeader(compact: compact),
                   const SizedBox(height: 6),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Wrap(
-                      spacing: 8,
-                      children: <Widget>[
-                        OutlinedButton.icon(
-                          onPressed: () async {
-                            final ScaffoldMessengerState messenger =
-                                ScaffoldMessenger.of(context);
+                  Expanded(
+                    child: GridView.builder(
+                      itemCount: cells.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 7,
+                        mainAxisSpacing: 4,
+                        crossAxisSpacing: 4,
+                        childAspectRatio: aspectRatio,
+                      ),
+                      itemBuilder: (context, index) {
+                        final DateTime day = cells[index];
+                        final bool currentMonth =
+                            day.month == visibleMonth.month;
+                        final bool inRange =
+                            !day.isBefore(periodStart) &&
+                            !day.isAfter(periodEnd);
+                        final int key = _dayKey(day);
+                        final List<Assignment> dayAtamalar =
+                            atamaMap[key] ?? <Assignment>[];
+                        final List<UnfilledSlot> dayBoslar =
+                            bosMap[key] ?? <UnfilledSlot>[];
+                        final int toplamKayit =
+                            dayAtamalar.length + dayBoslar.length;
 
-                            String? targetDirectoryPath;
-                            String? targetFileName;
-                            if (_supportsManualPdfSaveDialog) {
-                              final _PdfSaveSelection? selection =
-                                  await _showPdfSaveDialog(
-                                    context,
-                                    title: 'Liste PDF Kaydet',
-                                    initialFileName: _defaultListPdfName(
-                                      result,
-                                    ),
-                                  );
-                              if (selection == null) {
-                                messenger.showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Kaydetme iptal edildi.'),
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(6),
+                          onTap:
+                              (!inRange ||
+                                  (dayAtamalar.isEmpty && dayBoslar.isEmpty))
+                              ? null
+                              : () => _showDayDetails(
+                                  context,
+                                  day: day,
+                                  atamalar: dayAtamalar,
+                                  boslar: dayBoslar,
+                                  personMap: personMap,
+                                  locationMap: locationMap,
+                                ),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.black12),
+                              borderRadius: BorderRadius.circular(6),
+                              color: !currentMonth
+                                  ? Theme.of(
+                                      context,
+                                    ).colorScheme.surfaceContainerHighest
+                                  : Theme.of(context).colorScheme.surface,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  '${day.day}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: currentMonth ? null : Colors.black38,
                                   ),
-                                );
-                                return;
-                              }
-                              targetDirectoryPath = selection.directoryPath;
-                              targetFileName = selection.fileName;
-                            }
-
-                            await widget.onShowInterstitialAd();
-                            final exportResult =
-                                await PlanPrintService.exportPlanListPdf(
-                                  result: result,
-                                  people: widget.people,
-                                  locations: widget.locations,
-                                  targetDirectoryPath: targetDirectoryPath,
-                                  targetFileName: targetFileName,
-                                );
-                            messenger.showSnackBar(
-                              SnackBar(content: Text(exportResult.message)),
-                            );
-                          },
-                          icon: const Icon(Icons.print_outlined),
-                          label: const Text('Liste PDF Kaydet'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: () async {
-                            final ScaffoldMessengerState messenger =
-                                ScaffoldMessenger.of(context);
-
-                            String? targetDirectoryPath;
-                            String? targetFileName;
-                            if (_supportsManualPdfSaveDialog) {
-                              final _PdfSaveSelection? selection =
-                                  await _showPdfSaveDialog(
-                                    context,
-                                    title: 'Takvim PDF Kaydet',
-                                    initialFileName: _defaultCalendarPdfName(
-                                      result,
-                                    ),
-                                  );
-                              if (selection == null) {
-                                messenger.showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Kaydetme iptal edildi.'),
+                                ),
+                                const SizedBox(height: 4),
+                                if (!inRange)
+                                  const SizedBox.shrink()
+                                else
+                                  Expanded(
+                                    child: toplamKayit == 0
+                                        ? const Text(
+                                            'Kayit yok',
+                                            style: TextStyle(fontSize: 10),
+                                          )
+                                        : SingleChildScrollView(
+                                            child: Column(
+                                              children: <Widget>[
+                                                ...dayAtamalar.map(
+                                                  (a) => _calendarDutyTile(
+                                                    label:
+                                                        '${locationMap[a.locationId] ?? 'Yer'} - ${_timeRange(a.shiftStart, a.shiftEnd)} - ${personMap[a.personId] ?? 'Kisi'}',
+                                                    accentColor: Colors.green,
+                                                  ),
+                                                ),
+                                                ...dayBoslar.map(
+                                                  (u) => _calendarDutyTile(
+                                                    label:
+                                                        '${locationMap[u.locationId] ?? 'Yer'} - ${_timeRange(u.shiftStart, u.shiftEnd)} - BOS',
+                                                    accentColor: Colors.red,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
                                   ),
-                                );
-                                return;
-                              }
-                              targetDirectoryPath = selection.directoryPath;
-                              targetFileName = selection.fileName;
-                            }
-
-                            await widget.onShowInterstitialAd();
-                            final exportResult =
-                                await PlanPrintService.exportPlanCalendarPdf(
-                                  result: result,
-                                  people: widget.people,
-                                  locations: widget.locations,
-                                  targetDirectoryPath: targetDirectoryPath,
-                                  targetFileName: targetFileName,
-                                );
-                            messenger.showSnackBar(
-                              SnackBar(content: Text(exportResult.message)),
-                            );
-                          },
-                          icon: const Icon(Icons.calendar_month_outlined),
-                          label: const Text('Takvim PDF Kaydet'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: () async {
-                            await widget.onClearPlan();
-                          },
-                          icon: const Icon(Icons.delete_outline),
-                          label: const Text('Plani Temizle'),
-                        ),
-                      ],
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: <Widget>[
-              IconButton(
-                onPressed: _isSameMonth(visibleMonth, minMonth)
-                    ? null
-                    : () => setState(
-                        () => _visibleMonth = DateTime(
-                          visibleMonth.year,
-                          visibleMonth.month - 1,
-                          1,
-                        ),
-                      ),
-                icon: const Icon(Icons.chevron_left),
-              ),
-              Expanded(
-                child: Center(
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<DateTime>(
-                      value: visibleMonth,
-                      items: months
-                          .map(
-                            (m) => DropdownMenuItem<DateTime>(
-                              value: m,
-                              child: Text(
-                                '${m.month.toString().padLeft(2, '0')}.${m.year}',
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value == null) return;
-                        setState(() => _visibleMonth = value);
-                      },
-                    ),
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: _isSameMonth(visibleMonth, maxMonth)
-                    ? null
-                    : () => setState(
-                        () => _visibleMonth = DateTime(
-                          visibleMonth.year,
-                          visibleMonth.month + 1,
-                          1,
-                        ),
-                      ),
-                icon: const Icon(Icons.chevron_right),
-              ),
-            ],
-          ),
-          const _WeekHeader(),
-          const SizedBox(height: 6),
-          Expanded(
-            child: GridView.builder(
-              itemCount: cells.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 7,
-                mainAxisSpacing: 4,
-                crossAxisSpacing: 4,
-                childAspectRatio: 0.8,
-              ),
-              itemBuilder: (context, index) {
-                final DateTime day = cells[index];
-                final bool currentMonth = day.month == visibleMonth.month;
-                final bool inRange =
-                    !day.isBefore(periodStart) && !day.isAfter(periodEnd);
-                final int key = _dayKey(day);
-                final List<Assignment> dayAtamalar =
-                    atamaMap[key] ?? <Assignment>[];
-                final List<UnfilledSlot> dayBoslar =
-                    bosMap[key] ?? <UnfilledSlot>[];
-                final int toplamKayit = dayAtamalar.length + dayBoslar.length;
-                final bool compactMode = toplamKayit > 2;
-
-                return InkWell(
-                  borderRadius: BorderRadius.circular(6),
-                  onTap:
-                      (!inRange || (dayAtamalar.isEmpty && dayBoslar.isEmpty))
-                      ? null
-                      : () => _showDayDetails(
-                          context,
-                          day: day,
-                          atamalar: dayAtamalar,
-                          boslar: dayBoslar,
-                          personMap: personMap,
-                          locationMap: locationMap,
-                        ),
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.black12),
-                      borderRadius: BorderRadius.circular(6),
-                      color: !currentMonth
-                          ? Theme.of(
-                              context,
-                            ).colorScheme.surfaceContainerHighest
-                          : Theme.of(context).colorScheme.surface,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          '${day.day}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: currentMonth ? null : Colors.black38,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        if (!inRange)
-                          const SizedBox.shrink()
-                        else ...<Widget>[
-                          if (compactMode) ...<Widget>[
-                            Text(
-                              'Atama: ${dayAtamalar.length}',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: Colors.green,
-                              ),
-                            ),
-                            Text(
-                              'Bos: ${dayBoslar.length}',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: Colors.red,
-                              ),
-                            ),
-                          ] else ...<Widget>[
-                            ...dayAtamalar
-                                .take(2)
-                                .map(
-                                  (a) => Text(
-                                    '${locationMap[a.locationId] ?? 'Yer'} - ${personMap[a.personId] ?? 'Kisi'}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.green,
-                                    ),
-                                  ),
-                                ),
-                            ...dayBoslar
-                                .take(1)
-                                .map(
-                                  (u) => Text(
-                                    '${locationMap[u.locationId] ?? 'Yer'} - BOS',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.red,
-                                    ),
-                                  ),
-                                ),
-                            if (toplamKayit == 0)
-                              const Text(
-                                'Kayit yok',
-                                style: TextStyle(fontSize: 10),
-                              ),
-                          ],
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -451,6 +466,38 @@ class _PlanViewPageState extends State<PlanViewPage> {
       a.year == b.year && a.month == b.month;
 
   int _dayKey(DateTime date) => date.year * 10000 + date.month * 100 + date.day;
+
+  String _timeRange(DateTime start, DateTime end) {
+    final TimeOfDay startTime = TimeOfDay.fromDateTime(start);
+    final TimeOfDay endTime = TimeOfDay.fromDateTime(end);
+    return '${formatTime(startTime)}-${formatTime(endTime)}';
+  }
+
+  Widget _calendarDutyTile({
+    required String label,
+    required Color accentColor,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+      decoration: BoxDecoration(
+        color: accentColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: accentColor.withValues(alpha: 0.4)),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 9.5,
+          fontWeight: FontWeight.w600,
+          color: accentColor.withValues(alpha: 0.95),
+        ),
+      ),
+    );
+  }
 
   void _showDayDetails(
     BuildContext context, {
@@ -744,7 +791,9 @@ class _PdfSaveSelection {
 }
 
 class _WeekHeader extends StatelessWidget {
-  const _WeekHeader();
+  const _WeekHeader({required this.compact});
+
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -764,7 +813,10 @@ class _WeekHeader extends StatelessWidget {
               child: Center(
                 child: Text(
                   e,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: compact ? 11 : 13,
+                  ),
                 ),
               ),
             ),

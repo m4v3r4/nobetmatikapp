@@ -237,10 +237,11 @@ class PlanPrintService {
 
             for (final a in dayA) {
               cell +=
-                  '\n${locationMap[a.locationId] ?? 'Yer'} - ${personMap[a.personId] ?? 'Kişi'}';
+                  '\n${locationMap[a.locationId] ?? 'Yer'} - ${_timeRange(a.shiftStart, a.shiftEnd)} - ${personMap[a.personId] ?? 'Kisi'}';
             }
             for (final u in dayU) {
-              cell += '\n${locationMap[u.locationId] ?? 'Yer'} - BOS';
+              cell +=
+                  '\n${locationMap[u.locationId] ?? 'Yer'} - ${_timeRange(u.shiftStart, u.shiftEnd)} - BOS';
             }
           }
         }
@@ -390,5 +391,13 @@ class PlanPrintService {
     final String h = dt.hour.toString().padLeft(2, '0');
     final String min = dt.minute.toString().padLeft(2, '0');
     return '${_date(dt)} $h:$min';
+  }
+
+  static String _timeRange(DateTime start, DateTime end) {
+    final String sh = start.hour.toString().padLeft(2, '0');
+    final String sm = start.minute.toString().padLeft(2, '0');
+    final String eh = end.hour.toString().padLeft(2, '0');
+    final String em = end.minute.toString().padLeft(2, '0');
+    return '$sh:$sm-$eh:$em';
   }
 }

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../services/ads/admob_ids.dart';
+import '../services/ads/adsense_banner.dart';
+import '../services/ads/adsense_ids.dart';
 
 class AdBannerStrip extends StatefulWidget {
   const AdBannerStrip({super.key, required this.enabled});
@@ -83,6 +85,16 @@ class _AdBannerStripState extends State<AdBannerStrip> {
 
   @override
   Widget build(BuildContext context) {
+    if (kIsWeb && widget.enabled) {
+      if (AdSenseIds.adClient.isEmpty || AdSenseIds.bannerSlotId.isEmpty) {
+        return const SizedBox.shrink();
+      }
+      return AdSenseBanner(
+        adClient: AdSenseIds.adClient,
+        adSlot: AdSenseIds.bannerSlotId,
+      );
+    }
+
     if (!_canShow || !_loaded || _bannerAd == null) {
       return const SizedBox.shrink();
     }

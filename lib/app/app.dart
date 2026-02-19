@@ -6,18 +6,18 @@ import '../screens/locations_page.dart';
 import '../screens/people_page.dart';
 import '../screens/plan_builder_page.dart';
 import '../screens/plan_view_page.dart';
-import '../services/ads/admob_service.dart';
+import '../services/ads/ads_service.dart';
 import '../widgets/ad_banner_strip.dart';
 
 class NobetmatikApp extends StatefulWidget {
   const NobetmatikApp({
     super.key,
     required this.controller,
-    required this.adMobService,
+    required this.adsService,
   });
 
   final AppController controller;
-  final AdMobService adMobService;
+  final AdsService adsService;
 
   @override
   State<NobetmatikApp> createState() => _NobetmatikAppState();
@@ -43,7 +43,7 @@ class _NobetmatikAppState extends State<NobetmatikApp> {
 
   @override
   void dispose() {
-    widget.adMobService.dispose();
+    widget.adsService.dispose();
     super.dispose();
   }
 
@@ -52,23 +52,43 @@ class _NobetmatikAppState extends State<NobetmatikApp> {
     return AnimatedBuilder(
       animation: widget.controller,
       builder: (context, _) {
+        final ColorScheme lightScheme = ColorScheme.fromSeed(
+          seedColor: const Color(0xFF005A9C),
+          brightness: Brightness.light,
+        );
+        final ColorScheme darkScheme = ColorScheme.fromSeed(
+          seedColor: const Color(0xFF005A9C),
+          brightness: Brightness.dark,
+        );
+
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           title: 'Nobetmatik',
           navigatorKey: _navigatorKey,
           theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFF004D9B),
-              brightness: Brightness.light,
-            ),
+            colorScheme: lightScheme,
             useMaterial3: true,
+            fontFamily: 'NotoSans',
+            scaffoldBackgroundColor: const Color(0xFFF4F7FB),
+            cardTheme: CardThemeData(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: lightScheme.outlineVariant),
+              ),
+            ),
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
           ),
           darkTheme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFF004D9B),
-              brightness: Brightness.dark,
-            ),
+            colorScheme: darkScheme,
             useMaterial3: true,
+            fontFamily: 'NotoSans',
           ),
           themeMode: widget.controller.themeMode,
           home: widget.controller.isReady
@@ -81,17 +101,141 @@ class _NobetmatikAppState extends State<NobetmatikApp> {
     );
   }
 
+  List<NavigationDestination> get _destinations =>
+      const <NavigationDestination>[
+        NavigationDestination(
+          icon: Icon(Icons.people_outline),
+          selectedIcon: Icon(Icons.people),
+          label: 'Kisiler',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.place_outlined),
+          selectedIcon: Icon(Icons.place),
+          label: 'Yerler',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.build_outlined),
+          selectedIcon: Icon(Icons.build),
+          label: 'Plan Olustur',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.view_list_outlined),
+          selectedIcon: Icon(Icons.view_list),
+          label: 'Plan',
+        ),
+      ];
+
+  List<Widget> _buildPages() {
+    return <Widget>[
+      PeoplePage(
+        people: widget.controller.people,
+        onAdd: (name) => widget.controller.addPerson(name),
+        onToggle: (id, value) => widget.controller.togglePerson(id, value),
+        onDelete: (id) => widget.controller.deletePerson(id),
+      ),
+      LocationsPage(
+        locations: widget.controller.locations,
+        onAdd: (ad, kapasite) => widget.controller.addLocation(ad, kapasite),
+        onDelete: (id) => widget.controller.deleteLocation(id),
+      ),
+      PlanBuilderPage(
+        periodStart: widget.controller.periodStart,
+        periodEnd: widget.controller.periodEnd,
+        vardiyalar: widget.controller.vardiyalar,
+        seciliHaftaGunleri: widget.controller.seciliHaftaGunleri,
+        minRestHours: widget.controller.minRestHours,
+        weeklyMaxShifts: widget.controller.weeklyMaxShifts,
+        onPeriodStartChanged: (value) =>
+            widget.controller.setPeriodStart(value),
+        onPeriodEndChanged: (value) => widget.controller.setPeriodEnd(value),
+        onAddVardiya: () => widget.controller.addVardiya(),
+        onRemoveVardiya: (id) => widget.controller.removeVardiya(id),
+        onSetVardiyaStart: (id, value) =>
+            widget.controller.setVardiyaStart(id, value),
+        onSetVardiyaEnd: (id, value) =>
+            widget.controller.setVardiyaEnd(id, value),
+        onSeciliHaftaGunleriChanged: (value) =>
+            widget.controller.setSeciliHaftaGunleri(value),
+        onMinRestChanged: (value) => widget.controller.setMinRestHours(value),
+        onWeeklyMaxChanged: (value) =>
+            widget.controller.setWeeklyMaxShifts(value),
+        isGenerating: _isGeneratingPlan,
+        onGenerate: _handleGeneratePlan,
+      ),
+      PlanViewPage(
+        result: widget.controller.lastResult,
+        people: widget.controller.people,
+        locations: widget.controller.locations,
+        aktifPeople: widget.controller.aktifPeople,
+        onShowInterstitialAd: () =>
+            widget.adsService.showInterstitialIfAvailable(),
+        onClearPlan: () async {
+          final bool onay = await _showPlanClearDialog() ?? false;
+          if (!onay) return;
+          await widget.controller.clearPlan();
+        },
+        onReassignAssignment: (assignment, personId) =>
+            widget.controller.reassignAssignment(assignment, personId),
+        onFillUnfilledSlot: (slot, personId) =>
+            widget.controller.fillUnfilledSlot(slot, personId),
+      ),
+    ];
+  }
+
+  Future<void> _handleGeneratePlan() async {
+    if (_isGeneratingPlan) return;
+    setState(() => _isGeneratingPlan = true);
+    try {
+      if (widget.controller.hasCurrentPlanOverlap()) {
+        final bool onay = await _showPlanOverwriteDialog() ?? false;
+        if (!onay) return;
+      }
+
+      await widget.adsService.showInterstitialIfAvailable();
+      await widget.controller.generatePlan();
+      final int bos = widget.controller.lastResult?.unfilledSlots.length ?? 0;
+      if (bos == 0) {
+        if (!mounted) return;
+        setState(() => _tabIndex = 3);
+        return;
+      }
+
+      final int ekKisi = widget.controller.gerekenEkKisiSayisi();
+      if (!mounted) return;
+      final bool bosBirak =
+          await _showUnfilledDecisionDialog(
+            bosSlotSayisi: bos,
+            ekKisiSayisi: ekKisi,
+          ) ??
+          false;
+      if (!mounted) return;
+      setState(() => _tabIndex = bosBirak ? 3 : 2);
+    } finally {
+      if (mounted) {
+        setState(() => _isGeneratingPlan = false);
+      }
+    }
+  }
+
   Widget _buildScaffold() {
+    final List<Widget> pages = _buildPages();
+
     return Scaffold(
       appBar: AppBar(
-        title: ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: Image.asset(
-            'logo.png',
-            width: 36,
-            height: 36,
-            fit: BoxFit.cover,
-          ),
+        title: Row(
+          children: <Widget>[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset(
+                'logo.png',
+                width: 36,
+                height: 36,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Text('Nobetmatik'),
+          ],
         ),
         actions: <Widget>[
           IconButton(
@@ -111,134 +255,87 @@ class _NobetmatikAppState extends State<NobetmatikApp> {
           ),
         ],
       ),
-      body: IndexedStack(
-        index: _tabIndex,
-        children: <Widget>[
-          PeoplePage(
-            people: widget.controller.people,
-            onAdd: (name) => widget.controller.addPerson(name),
-            onToggle: (id, value) => widget.controller.togglePerson(id, value),
-            onDelete: (id) => widget.controller.deletePerson(id),
-          ),
-          LocationsPage(
-            locations: widget.controller.locations,
-            onAdd: (ad, kapasite) =>
-                widget.controller.addLocation(ad, kapasite),
-            onDelete: (id) => widget.controller.deleteLocation(id),
-          ),
-          PlanBuilderPage(
-            periodStart: widget.controller.periodStart,
-            periodEnd: widget.controller.periodEnd,
-            vardiyalar: widget.controller.vardiyalar,
-            seciliHaftaGunleri: widget.controller.seciliHaftaGunleri,
-            minRestHours: widget.controller.minRestHours,
-            weeklyMaxShifts: widget.controller.weeklyMaxShifts,
-            onPeriodStartChanged: (value) =>
-                widget.controller.setPeriodStart(value),
-            onPeriodEndChanged: (value) =>
-                widget.controller.setPeriodEnd(value),
-            onAddVardiya: () => widget.controller.addVardiya(),
-            onRemoveVardiya: (id) => widget.controller.removeVardiya(id),
-            onSetVardiyaStart: (id, value) =>
-                widget.controller.setVardiyaStart(id, value),
-            onSetVardiyaEnd: (id, value) =>
-                widget.controller.setVardiyaEnd(id, value),
-            onSeciliHaftaGunleriChanged: (value) =>
-                widget.controller.setSeciliHaftaGunleri(value),
-            onMinRestChanged: (value) =>
-                widget.controller.setMinRestHours(value),
-            onWeeklyMaxChanged: (value) =>
-                widget.controller.setWeeklyMaxShifts(value),
-            isGenerating: _isGeneratingPlan,
-            onGenerate: () async {
-              if (_isGeneratingPlan) return;
-              setState(() => _isGeneratingPlan = true);
-              try {
-                if (widget.controller.hasCurrentPlanOverlap()) {
-                  final bool onay = await _showPlanOverwriteDialog() ?? false;
-                  if (!onay) return;
-                }
+      body: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final bool isDesktop = constraints.maxWidth >= 980;
+          if (!isDesktop) {
+            return IndexedStack(index: _tabIndex, children: pages);
+          }
 
-                await widget.adMobService.showInterstitialIfAvailable();
-                await widget.controller.generatePlan();
-                final int bos =
-                    widget.controller.lastResult?.unfilledSlots.length ?? 0;
-                if (bos == 0) {
-                  if (!mounted) return;
-                  setState(() => _tabIndex = 3);
-                  return;
-                }
-
-                final int ekKisi = widget.controller.gerekenEkKisiSayisi();
-                if (!mounted) return;
-                final bool bosBirak =
-                    await _showUnfilledDecisionDialog(
-                      bosSlotSayisi: bos,
-                      ekKisiSayisi: ekKisi,
-                    ) ??
-                    false;
-                if (!mounted) return;
-                setState(() => _tabIndex = bosBirak ? 3 : 2);
-              } finally {
-                if (mounted) {
-                  setState(() => _isGeneratingPlan = false);
-                }
-              }
-            },
-          ),
-          PlanViewPage(
-            result: widget.controller.lastResult,
-            people: widget.controller.people,
-            locations: widget.controller.locations,
-            aktifPeople: widget.controller.aktifPeople,
-            onShowInterstitialAd: () =>
-                widget.adMobService.showInterstitialIfAvailable(),
-            onClearPlan: () async {
-              final bool onay = await _showPlanClearDialog() ?? false;
-              if (!onay) return;
-              await widget.controller.clearPlan();
-            },
-            onReassignAssignment: (assignment, personId) =>
-                widget.controller.reassignAssignment(assignment, personId),
-            onFillUnfilledSlot: (slot, personId) =>
-                widget.controller.fillUnfilledSlot(slot, personId),
-          ),
-        ],
-      ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Center(
-            child: AdBannerStrip(enabled: widget.adMobService.isAdsEnabled),
-          ),
-          NavigationBar(
-            selectedIndex: _tabIndex,
-            onDestinationSelected: (value) => setState(() => _tabIndex = value),
-            destinations: const <NavigationDestination>[
-              NavigationDestination(
-                icon: Icon(Icons.people_outline),
-                selectedIcon: Icon(Icons.people),
-                label: 'Kisiler',
+          return Row(
+            children: <Widget>[
+              NavigationRail(
+                selectedIndex: _tabIndex,
+                onDestinationSelected: (value) =>
+                    setState(() => _tabIndex = value),
+                labelType: NavigationRailLabelType.all,
+                minWidth: 86,
+                destinations: _destinations
+                    .map(
+                      (NavigationDestination d) => NavigationRailDestination(
+                        icon: d.icon,
+                        selectedIcon: d.selectedIcon,
+                        label: Text(d.label),
+                      ),
+                    )
+                    .toList(),
               ),
-              NavigationDestination(
-                icon: Icon(Icons.place_outlined),
-                selectedIcon: Icon(Icons.place),
-                label: 'Yerler',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.build_outlined),
-                selectedIcon: Icon(Icons.build),
-                label: 'Plan Olustur',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.view_list_outlined),
-                selectedIcon: Icon(Icons.view_list),
-                label: 'Plan',
+              const VerticalDivider(width: 1),
+              Expanded(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: <Color>[
+                        Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.05),
+                        Theme.of(context).colorScheme.surface,
+                      ],
+                    ),
+                  ),
+                  child: Column(
+                    children: <Widget>[
+                      Expanded(
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 1400),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: IndexedStack(
+                                index: _tabIndex,
+                                children: pages,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      AdBannerStrip(enabled: widget.adsService.isAdsEnabled),
+                    ],
+                  ),
+                ),
               ),
             ],
-          ),
-        ],
+          );
+        },
       ),
+      bottomNavigationBar: MediaQuery.sizeOf(context).width >= 980
+          ? null
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Center(
+                  child: AdBannerStrip(enabled: widget.adsService.isAdsEnabled),
+                ),
+                NavigationBar(
+                  selectedIndex: _tabIndex,
+                  onDestinationSelected: (value) =>
+                      setState(() => _tabIndex = value),
+                  destinations: _destinations,
+                ),
+              ],
+            ),
     );
   }
 

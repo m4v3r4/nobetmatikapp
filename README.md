@@ -73,3 +73,20 @@ Kalıcı tutulan alanlar:
 flutter pub get
 flutter run
 ```
+
+## Reklam Altyapısı
+- Mobil (Android/iOS): AdMob servisi kullanılır.
+- Web: AdSense servisi kullanılır.
+
+Web'de AdSense aktif etmek için:
+```bash
+flutter run -d chrome \
+  --dart-define=ADSENSE_CLIENT=ca-pub-xxxxxxxxxxxxxxxx \
+  --dart-define=ADSENSE_BANNER_SLOT=1234567890
+```
+
+## GitHub Pages Yayını
+- Workflow dosyası: `.github/workflows/deploy-web.yml`
+- `main` branch'e her push sonrası web build alınıp GitHub Pages'e deploy edilir.
+- Build sırasında `--base-href "/<repo-adi>/"` otomatik verilir.
+- Flutter SPA rotalama için `build/web/404.html` otomatik oluşturulur.

@@ -42,6 +42,7 @@ dependencies:
   path_provider: ^2.1.5
   share_plus: ^11.0.0
   device_info_plus: ^11.5.0
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:
@@ -69,6 +70,12 @@ flutter:
     - logo.png
     - assets/fonts/NotoSans-Regular.ttf
     - assets/fonts/NotoSans-Bold.ttf
+  fonts:
+    - family: NotoSans
+      fonts:
+        - asset: assets/fonts/NotoSans-Regular.ttf
+        - asset: assets/fonts/NotoSans-Bold.ttf
+          weight: 700
 
   # To add assets to your application, add an assets section, like this:
   # assets:
