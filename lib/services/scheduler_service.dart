@@ -15,10 +15,17 @@ class _ShiftSlot {
 }
 
 class _CandidateEval {
-  const _CandidateEval({required this.uygun, required this.skor});
+  const _CandidateEval({
+    required this.uygun,
+    required this.mevcutNobetAdedi,
+    required this.skor,
+    required this.sonNobetBitis,
+  });
 
   final bool uygun;
+  final int mevcutNobetAdedi;
   final double skor;
+  final DateTime? sonNobetBitis;
 }
 
 class SchedulerService {
@@ -80,7 +87,7 @@ class SchedulerService {
 
     for (final _ShiftSlot slot in tumSlotlar) {
       Person? enIyi;
-      double enIyiSkor = double.infinity;
+      _CandidateEval? enIyiDeger;
 
       for (final Person person in aktifKisiler) {
         final _CandidateEval deger = _scoreCandidate(
@@ -98,9 +105,16 @@ class SchedulerService {
           continue;
         }
 
-        if (deger.skor < enIyiSkor) {
-          enIyiSkor = deger.skor;
+        final bool dahaIyi = enIyi == null ||
+            _isBetterCandidate(
+              candidate: deger,
+              best: enIyiDeger!,
+              candidateId: person.id,
+              bestId: enIyi.id,
+            );
+        if (dahaIyi) {
           enIyi = person;
+          enIyiDeger = deger;
         }
       }
 
@@ -220,26 +234,41 @@ class SchedulerService {
       (a) => a.shiftStart.isBefore(slot.end) && slot.start.isBefore(a.shiftEnd),
     );
     if (cakismaVar) {
-      return const _CandidateEval(uygun: false, skor: double.infinity);
+      return const _CandidateEval(
+        uygun: false,
+        mevcutNobetAdedi: 0,
+        skor: double.infinity,
+        sonNobetBitis: null,
+      );
     }
 
     final DateTime? sonBitis = kisiSonNobetBitis[person.id];
     if (sonBitis != null) {
       final int dinlenmeSaat = slot.start.difference(sonBitis).inHours;
       if (dinlenmeSaat < rules.minDinlenmeSaat) {
-        return const _CandidateEval(uygun: false, skor: double.infinity);
+        return const _CandidateEval(
+          uygun: false,
+          mevcutNobetAdedi: 0,
+          skor: double.infinity,
+          sonNobetBitis: null,
+        );
       }
     }
 
     final int haftaNobetSayisi = _weekShiftCount(existing, slot.start);
     if (haftaNobetSayisi >= rules.haftalikMaxNobet) {
-      return const _CandidateEval(uygun: false, skor: double.infinity);
+      return const _CandidateEval(
+        uygun: false,
+        mevcutNobetAdedi: 0,
+        skor: double.infinity,
+        sonNobetBitis: null,
+      );
     }
 
     final double mevcutSaat = kisiSaat[person.id] ?? 0;
     final double projectedSaat = mevcutSaat + slot.durationHours;
     final double dengeSkoru = (projectedSaat - hedefSaat).abs() * 10;
-    final double adetSkoru = (kisiNobetAdedi[person.id] ?? 0) * 3;
+    final int mevcutNobetAdedi = kisiNobetAdedi[person.id] ?? 0;
 
     double yakinlikCeza = 0;
     if (sonBitis != null) {
@@ -251,8 +280,36 @@ class SchedulerService {
 
     return _CandidateEval(
       uygun: true,
-      skor: dengeSkoru + adetSkoru + yakinlikCeza,
+      mevcutNobetAdedi: mevcutNobetAdedi,
+      skor: dengeSkoru + yakinlikCeza,
+      sonNobetBitis: sonBitis,
     );
+  }
+
+  bool _isBetterCandidate({
+    required _CandidateEval candidate,
+    required _CandidateEval best,
+    required int candidateId,
+    required int bestId,
+  }) {
+    if (candidate.mevcutNobetAdedi != best.mevcutNobetAdedi) {
+      return candidate.mevcutNobetAdedi < best.mevcutNobetAdedi;
+    }
+    if (candidate.skor != best.skor) {
+      return candidate.skor < best.skor;
+    }
+    if (candidate.sonNobetBitis == null && best.sonNobetBitis != null) {
+      return true;
+    }
+    if (candidate.sonNobetBitis != null && best.sonNobetBitis == null) {
+      return false;
+    }
+    if (candidate.sonNobetBitis != null &&
+        best.sonNobetBitis != null &&
+        !candidate.sonNobetBitis!.isAtSameMomentAs(best.sonNobetBitis!)) {
+      return candidate.sonNobetBitis!.isBefore(best.sonNobetBitis!);
+    }
+    return candidateId < bestId;
   }
 
   int _weekShiftCount(List<Assignment> assignments, DateTime date) {
